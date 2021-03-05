@@ -2,10 +2,12 @@
           [ k4r_get_core_link/1,
             k4r_get_search_link/1,
             k4r_get_entity_by_key_value/4,
-            k4r_get_entity_id/3,
+            k4r_get_entity_id/2,
             k4r_get_entity_by_id/3,
             k4r_get_product_by_shelf/3,
-            write_shelf_location/1
+            post_shelf_location/1,
+            post_shelf_layers/1,
+            post_shelf_layers/3
           ]).
 /** <module> A client for the k4r db for Prolog.
 
@@ -14,8 +16,9 @@
 */
 
 :- use_foreign_library('libk4r_db_client.so').
-:- use_module(library('http/json')).
 :- use_module(library(http/json)).
+:- use_module(library('semweb/rdf_db'),
+	[ rdf_split_url/3 ]).
 :- use_module(library('shop')).
 
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
@@ -60,7 +63,7 @@ k4r_get_product_by_shelf(Link, Shelf, Product) :-
     k4r_get_product(Link, ProductId, Product).
 
 
-write_shelf_location(StoreId):-
+post_shelf_location(StoreId):-
   k4r_get_core_link(Link),
   ProductGroupId = 3,
   CadPlanId = "Cad_7",
@@ -71,7 +74,70 @@ write_shelf_location(StoreId):-
       object_dimensions(Shelf, D, W1, H),
       k4r_post_shelf(Link, StoreId, [[X,Y,Z], [X1,Y1,Z1,W]], [2,3,4], ProductGroupId,  ShelfId, CadPlanId)
       ),
-      ShelfInfo).
+      _).
+
+%%%%% TODO: Data must be formatted before assigned to a term
+post_shelf_layers(StoreId, Shelf, ShelfId) :- %% shelfId is the primary key of the shelf table
+    k4r_get_core_link(Link),
+    forall(triple(Shelf, soma:hasPhysicalComponent, Layer),
+        (writeln('in post shelf'),
+        is_at(Layer, ['map', [_,_,Z], _]),
+        instance_of(Layer, LayerType),
+        rdf_split_url(_,LayerFrame,LayerType),
+        writeln('got layer type, pose'),
+        triple(Layer, shop:erpShelfLayerId, LayerLevel),
+        object_dimensions(Layer, D, W, H),
+        writeln('got layer level and dim'),
+        writeln(Link), 
+        writeln(ShelfId), number_string(ShelfId, ShelfIdTemp),
+        writeln(Z),writeln([D, W, H]), writeln(LayerLevel), writeln(LayerLevel), writeln(LayerFrame),
+        k4r_post_shelf_layer(Link, ShelfIdTemp, Z, [D, W, H], LayerLevel, LayerLevel, LayerFrame)
+        )).
+    
+
+post_shelf_layers(StoreId) :-
+    % remember('/home/kaviya/dump/dump/refills_openease_sim'),
+    k4r_get_search_link(SearchLink),
+    forall(
+        (instance_of(Shelf,dmshop:'DMShelfFrame'), 
+        shelf_with_erp_id(Shelf, ExtRefId)),
+        (number_string(ExtRefId, StringId),
+        k4r_get_entity_property_by_properties(SearchLink, 'shelf', [['storeId', 'externalReferenceId'], [2, StringId]], "id", ShelfIdList),
+        % ShelfIdList is [7],
+        writeln("id list"),
+        writeln(ShelfIdList),
+        member(ShelfId, ShelfIdList),writeln(ShelfId),,
+        string_chars(A, [f, o, o]),
+        writeln(A),
+        % number_string(ShelfIdTemp, ),
+        % assert_layer_id(Shelf),
+        writeln('got layer id'))
+        % post_shelf_layers(StoreId, Shelf, ShelfId))
+        ).
+
+    % member(S, Shelf), 
+    % get_dict("id", S, ShelfId),
+    % writeln(S).
+    
+    % get_dict("id", ShelfDict, ShelfId), 
+    % writeln(S), writeln(ShelfId).
+
+    % findall([ShelfId, Shelf, Layer, LayerId, Z, D, W, H],
+    %     (
+    %     instance_of(Shelf,dmshop:'DMShelfFrame'),
+    %     shelf_with_erp_id(Shelf, ShelfId),
+    %     triple(Shelf, soma:hasPhysicalComponent, Layer),
+    %     triple(Layer, shop:erpShelfLayerId, LayerId),
+    %     is_at(Layer, ['map', [_,_,Z], _])
+    %     ),
+    % ShelfLayerInfo).
+    %   Shelves).
+    % findall([ShelfId, Shelf],
+    %   (instance_of(Shelf,dmshop:'DMShelfFrame'),
+    %     shelf_with_erp_id(Shelf, ShelfId),
+    %     assert_layer_id(Shelf)),
+    %   Shelves).
+    
 
   % get_facings_in_shelflayer(ShelfId, Facings) :-  %% ShelfLayer_Facings -- [ShelfLayerId, Facings]
 %     k4r_get_core_link(Link), 
